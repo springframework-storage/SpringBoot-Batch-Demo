@@ -218,7 +218,7 @@ JPA 에는 CursorItemReader 가 없습니다.
 ### JpaPagingItemReader
 JPA 는 Hibernate 와 많은 유사점을 갖고 있지만, 한 가지 다른 것이 있다면 Hibernate 에선 Cursor 가 지원되지만
  JPA 에서 Cursor 기반 DB 접근을 지원하지 않습니다.
-* [JpaPagingItemReaderJobConfiguration]()
+* [JpaPagingItemReaderJobConfiguration](./src/main/java/com/example/batch/reader/jpa/JpaPagingItemReaderJobConfiguration.java)
 
 **PagingItemReader 주의사항**
 * 정렬 ```order``` 가 무조건 포함되어야 합니다.
@@ -250,3 +250,6 @@ JPA 는 Hibernate 와 많은 유사점을 갖고 있지만, 한 가지 다른 �
     * 만약 JpaRepository 를 사용해야 한다면, RepositoryItemReader 를 사용하는 것을 추천합니다.
         * Paging 을 기본적으로 지원합니다.
     * Hibernate, JPA 등 영속성 컨텍스트가 필요한 Reader 사용시 fetchSize 와 chunkSize 는 같은 값을 유지해야 합니다.
+    
+---
+
