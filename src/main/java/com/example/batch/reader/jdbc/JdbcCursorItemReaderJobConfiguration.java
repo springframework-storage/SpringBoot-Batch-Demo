@@ -31,7 +31,7 @@ public class JdbcCursorItemReaderJobConfiguration {
   private final StepBuilderFactory stepBuilderFactory;
   private final DataSource dataSource;
 
-  private int chunkSize = 10;
+  private static final int chunkSize = 10;
 
   @Bean
   public Job jdbcCursorItemReaderJob() {
