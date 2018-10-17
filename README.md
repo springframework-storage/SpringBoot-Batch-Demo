@@ -253,3 +253,84 @@ JPA 는 Hibernate 와 많은 유사점을 갖고 있지만, 한 가지 다른 �
     
 ---
 
+## ItemWriter
+* Writer 는 Reader, Processor 와 함께 ChunkOrientedTasklet 을 구성하는 3 요소입니다.
+* Reader 와 Writer 는 ChunkOrientedTasklet 에서 필수 요소이고, Processor 는 선택입니다.
+
+### ItemWriter 소개
+* ItemWriter 는 Spring Batch 에서 사용하는 출력 기능입니다.
+* Spring Batch 가 처음 나왔을 때, ItemWriter 는 ItemReader 와 마찬가지로 item 을 하나씩 다뤘습니다.
+* Spring Batch 2 와 Chunk 기반 처리의 도입으로 인해 ItemWriter 에도 큰 변화가 생겼습니다.
+* 이 업데이트 이후 ItemWriter 는 item 하나를 작성하지 않고 Chunk 단위로 묶인 item List 를 다룹니다.
+    * ItemReader 를 통해 각 항목을 개별적으로 읽고 이를 처리하기 위해 ItemProcessor 에 전달합니다.
+    * 이 프로세스는 Chunk 의 Item 개수만큼 처리될 때까지 계속됩니다.
+    * Chunk 단위만큼 처리가 완료되면 Writer 에 전달되어 Writer 에 명시되어 있는대로 일괄 처리합니다.
+    * 즉, Reader 와 Processor 를 거쳐 처리된 Item 을 Chunk 단위만큼 쌓은 뒤 이를 Writer 에 전달하는 것입니다.
+* Spring Batch 는 다양한 Output 타입을 처리할 수 있도록 많은 Writer 를 제공합니다.
+
+### Database Writer
+* Java 세계에서는 JDBC 또는 ORM 을 사용해 RDBMS 에 접근합니다.
+* Spring Batch 는 JDBC 와 ORM 모두 Writer 를 제공합니다.
+* Writer 는 Chunk 단위의 마지막 단계입니다.
+* 그래서 DB 의 영속성과 관련해서 항상 마지막에 **Flush**를 해줘야만 합니다.
+
+아래와 같이 영속성을 사용하는 JPA, Hibernate 의 경우 ItemWriter 구현체에서는 ```flush()``` 와 ```session.clear()``` 가 따라옵니다.
+
+JpaItemWriter
+```java
+@Override
+public void write(List<? extends T> items) {
+  EntityManager entityManager = EntityManagerFactoryUtils.getTransactionalEntityManager(entityManagerFactory);
+  if (entityManager == null) {
+    throw new DataAccessResourceFailureException("Unable to obtain a transactional EntityManager");
+  }
+  doWrite(entityManager, items);
+  entityManager.flush();
+}
+```
+
+HibernateItemWriter
+```java
+@Override
+public void write(List<? extends T> items) {
+  doWrite(sessionFactory, items);
+  sessionFactory.getCurrentSession().flush();
+  if (clearSession) {
+    sessionFactory.getCurrentSession().clear();
+  }
+}
+```
+Writer 가 받은 모든 Item 이 처리된 후, Spring Batch 는 현재 트랜잭션을 커밋합니다.<br>
+DB 와 관련된 Writer 는 아래와 같이 3가지가 있습니다.
+* JdbcBatchItemWriter
+* HibernateItemWriter
+* JpaItemWriter
+
+### JdbcBatchItemWriter
+* ORM 을 사용하지 않는 경우 대부분 JdbcBatchItemWriter 를 사용합니다.
+* **JDBC 의 Batch 기능을 사용해 한번에 DB 로 전달하여 DB 내부에서 쿼리들이 실행되도록 합니다.**
+* 이렇게 처리하는 이유는 어플리케이션과 DB 간에 데이터를 주고 받는 횟수를 최소화하여 성능 향상을 꾀하기 위함입니다.
+    * 업데이트를 일괄 처리로 그룹화하면 DB 와 어플리케이션 간 왕복 횟수가 줄어 성능이 향상됩니다.
+    
+* [JdbcBatchItemWriterJobConfiguration](./src/main/java/com/example/batch/writer/jdbc/JdbcBatchItemWriterJobConfiguration.java)
+
+추가로 알아둬야할 메소드 ```afterPropertiesSet```
+* 이 메소드는 ```InitializingBean``` 인터페이스에서 갖고 있는 메소드입니다.
+* JdbcBatchItemWriter, JpaItemWriter 등 ItemWriter 의 구현체들은 모두 ```InitializingBean``` 인터페이스를 구현합니다.
+* 여기서 ```afterPropertiesSet``` 가 하는 일은 각각의 Writer 들이 실행되기 위해 필요한 필수값들이 제대로 세팅되어있는지를
+ 체크합니다.
+* Writer 를 생성하고 위 메소드를 그 아래에서 바로 실행해보면 어느 값이 누락되었는지 명확하게 알 수 있습니다.
+
+### JpaItemWriter
+* 이번에 알아볼 Writer 는 ORM 을 사용할 수 있는 ```JpaItemWriter``` 입니다.
+
+* [JpaItemWriterJobConfiguration](./src/main/java/com/example/batch/writer/jpa/JpaItemWriterJobConfiguration.java)
+
+### CustomItemWriter
+Reader 와 달리 Writer 의 경우 Custom 하게 구현해야 할 일이 많습니다. 예를 들면 다음과 같은 경우가 있습니다.
+* Reader 에서 읽어온 데이터를 RestTemplate 으로 외부 API 로 전달해야 할 경우
+* 임시 저장을 하고 비교하기 위해 싱글톤 객체에 값을 넣어야 할 경우
+* 여러 Entity 를 동시에 save 해야 할 경우
+
+이렇게 Spring Batch 에서 공식적으로 지원하지 않는 Writer 를 사용하고 싶을 때는 ItemWriter 인터페이스를 구현해야합니다.
+
