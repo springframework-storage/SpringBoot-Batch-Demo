@@ -334,3 +334,72 @@ Reader 와 달리 Writer 의 경우 Custom 하게 구현해야 할 일이 많습
 
 이렇게 Spring Batch 에서 공식적으로 지원하지 않는 Writer 를 사용하고 싶을 때는 ItemWriter 인터페이스를 구현해야합니다.
 
+---
+
+## ItemProcessor
+* 이번에는 읽기와 쓰기가 아닌, 가공 (혹은 처리) 단계에 대해서 알아보겠습니다. 바로 ItemProcessor 입니다.
+* ItemProcessor 는 데이터를 가공하거나 필터링하는 역할을 합니다. 하지만, ItemProcessor 는 필수가 아닙니다.
+* 그럼에도 ItemProcessor 를 쓰는 것은, Reader, Writer 와는 별개의 단계로 분리되었기 때문에
+ **비즈니스 코드가 섞이는 것을 방지**해주기 때문입니다.
+* 그래서 일반적으로 배치 어플리케이션에서 비즈니스 로직을 추가할 때는 가장 먼저 Processor 를 고려해보는 것을 추천합니다.
+ 각 계층 (읽기/처리/쓰기)를 분리할 수 있는 좋은 방법입니다.
+ 
+1. process 단계에서 처리할 수 있는 비즈니스 로직의 종류
+2. Chunk 지향 처리에서 ItemProcessor 를 구성하는 방법
+3. Spring Batch 와 함께 제공되는 ItemProcessor 구현
+등등을 살펴보겠습니다.
+
+### ItemProcessor 소개
+* ItemProcessor 는 Reader 에서 넘겨준 데이터 개별건을 가공/처리해줍니다.
+* ItemWriter 에서 Chunk Size 단위로 묶은 데이터를 한번에 처리하는 것과는 대조됩니다.
+* 일반적으로 ItemProcessor 를 사용하는 방법은 2가지입니다.
+    * 변환
+        * Reader 에서 읽은 데이터를 원하는 타입으로 변환하여 Writer 에 넘겨줄 수 있습니다.
+    * 필터
+        * Reader 에서 넘겨준 데이터를 Writer 로 넘겨줄 것인지를 결정할 수 있습니다.
+        * **```null``` 을 반환하면 Writer 에 전달되지 않습니다.**
+        
+### ItemProcessor 인터페이스
+* ItemProcessor 인터페이스는 2개의 제네릭 타입이 필요합니다.
+```java
+package org.springframework.batch.item;
+
+public interface ItemProcessor<I, O> {
+  
+  O process(I item) throws Exception;
+  
+}
+```
+* I : ItemReader 에서 받을 타입
+* O : ItemReader 에 보낼 데이터 타입
+
+일반적으로 ItemProcessor 는 다음과 같이 익명 클래스 혹은 람다식을 많이 사용합니다.
+```java
+@Bean(BEAN_PREFIX + "processor")
+@StepScope
+public ItemProcessor<ReadType, WrtieType> processor() {
+  return item -> {
+    item.convert();
+    return item;
+  };
+}
+```
+익명 클래스 혹은 람다식을 사용하는 이유는 다음과 같습니다.
+* 불필요한 코드가 없어 구현 코드 양이 적습니다.
+    * 빠르게 구현이 가능합니다.
+* 고정된 형태가 없어 원하는 형태의 어떤 처리도 가능합니다.
+
+다만 단점도 있습니다.
+* Batch Config 클래스 안에 포함되어 있어야만 하기 때문에 Batch Config 의 코드 양이 많아질 수 있습니다.
+
+단점을 해결하기 위해 ItemProcessor 의 구현체를 직접 만들어 사용해도 무방합니다.
+> 보통 코드 양이 많아지면 별도 클래스로 Processor 를 분리해서 사용하기도 합니다.
+
+Spring Batch 에서는 자주 사용하는 용도의 Processor 를 미리 클래스로 만들어 제공하고 있습니다.
+
+클래스명 | 설명
+---------|-------
+ItemProcessorAdapter | ItemProcessor 를 구현하는 데 필요하지 않은 POJO 대리자에서 사용자 지정 메소드를 호출
+ValidatingItemProcessor | 논리를 필터링하여 Validator 객체에 위임
+CompositeItemProcessor | ItemProcessors Chaining 지원
+ 
